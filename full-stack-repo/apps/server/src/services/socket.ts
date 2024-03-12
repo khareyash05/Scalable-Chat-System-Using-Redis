@@ -1,22 +1,47 @@
 import { Server } from "socket.io";
+import Redis from 'ioredis'
+
+require('dotenv').config()
+
+const pub = new Redis({
+    host:process.env.HOST,
+    port:Number(process.env.PORT),
+    username:process.env.USERNAME,
+    password: process.env.PASSWORD
+});
+const sub = new Redis({
+    host:process.env.HOST,
+    port:Number(process.env.PORT),
+    username:process.env.USERNAME,
+    password: process.env.PASSWORD
+});
 
 class SocketService {
-    private _io :Server
+    private _io : Server
     constructor(){
-        console.log('init socket server');
-        
-        this._io = new Server()
+        this._io = new Server({
+            cors:{
+                allowedHeaders:['*'],
+                origin:'*'
+            }
+        })
+        sub.subscribe('MESSAGES')
     }
 
-    public initListener(){
-        const io = this._io
-        console.log('initialize socket listner');
-        
-        io.on('connect',socket=>{
-            console.log('socket connected',socket.id)
-            socket.on('event:message',async ({message}:{message:string}) => {
-                console.log("New message received",message)
+    public initListeners(){
+        const io = this._io;
+        io.on('connect',(socket)=>{
+            socket.on('event:message', async({message}:{message:string})=>{
+                console.log(message);  
+                // sent to publisher model
+                await pub.publish('MESSAGES',JSON.stringify(message));              
             })
+        })  
+        
+        sub.on('message',(channel,message)=>{
+            if(channel === 'MESSAGES'){
+                io.emit('message',message);
+            }
         })
     }
 
